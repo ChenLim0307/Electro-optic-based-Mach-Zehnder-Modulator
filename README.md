@@ -1,4 +1,3 @@
-# Electro-optic-based_Mach-Zehnder_Modulator
 # Electro-Optic Mach–Zehnder Modulator Simulation
 
 This repository contains the design, layout generation, and time-domain simulation of a silicon photonic Mach–Zehnder modulator (MZM) using the `si_fab` photonic design kit.
