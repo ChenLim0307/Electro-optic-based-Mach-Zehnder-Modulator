@@ -1,0 +1,151 @@
+from si_fab import all as pdk # Import process design kit
+from si_fab.components.modulator.mzm.simulation.simulate import simulate_modulation # import simulator
+import matplotlib.pyplot as plt # Draw graphs
+import numpy as np # For mathematics and calculations
+import os # For saving figures
+
+def power(t): # Optical signals are represented as "Power", Converting electrical field to optical power
+    return np.abs(t) ** 2
+
+length = 1000 # Phase shifter length; the longer it is, the lesser voltage it requires, and more chip area requires
+
+# Phase Shifter (
+ps = pdk.PhaseShifterWaveguide( # Creates PN junction waveguide
+    name="phaseshifter", # name
+    length=1000.0, # Longer length let e-field interact with light over greater distance but larger chip area
+    core_width=0.45, # Changing it affects in optical confinement, refractive index, and propagation loss. Too narrow = light leaks, Too wide = Higher order mode appears
+    rib_width=7.8, # Changing it affects electrical resistance, mechanical robustness. Larger width = improve electrical performance but alter optical behavior
+    junction_offset=-0.1, # Tells where PN junction sits relative to center of waveguide. Moving it can increase the overlap and causes larger phase shifter
+    p_width=4.1, # Changing affects the resistance and capacitance. Wider means lower electrical resistance but increases optical absorption.
+    n_width=3.9, # Changing affects the resistance and capacitance. Wider means lower resistance but higher capacitance.
+)
+
+vpi_lpi = 20 # Enter a float value for the half-wave voltage-length product in V.cm. Smaller value = less voltage, same phase shift, better modulator.
+cl = 1.1e-15  # Enter a float value for the capacitance per unit length in F/um. Larger capacitance = slower charging and lower bandwidth
+res = 1e5  # Enter a numeric value for the equivalent series resistance in Ohms. Increasing it reduces modulation speed.
+tau = length * res * cl # Expression for the RC time constant.
+ps.CircuitModel(vpi_lpi=vpi_lpi)
+
+# Heater
+heater = pdk.HeatedWaveguide(name="heater") # Call the heated waveguide class from the PDK
+heater.Layout(shape=[(0.0, 0.0), (100.0, 0.0)])
+
+# Modulator
+mzm =pdk.MZModulator(
+    phaseshifter=ps,
+    heater=heater,
+    rf_pitch=100.0, # Spacing between RF and electrodes. Changing it affects electric field distribution, RF impedance and signal quality in high frequency.
+    rf_pad_length=75, # Length of the metal pad that used to connect probes or bond wires.
+    rf_signal_width=5.0, # Width of center signal electrode. Changing it affects resistance, impedance and microwave loss.
+    rf_ground_width=20.0, # Changing it affects return current path and impedance.
+    heater_elpath_width=5.0, # Width of metal wire leading to heater. Changing it affects wider metal and lower resistance and lesser voltage drop.
+)
+
+mzm_lv = mzm.Layout()
+mzm_lv.visualize()
+mzm_lv.write_gdsii("mzm.gds")
+
+# Simpler simulation
+
+name = "simpler_simulation"
+
+results = simulate_modulation(
+    cell=mzm,
+    mod_amplitude=1.0, # Enter the RF modulation electrical signal amplitude in Volts. More amplitude affects the larger voltage and phase shift.
+    mod_noise=0.1, # Enter the RF signal noise amplitude in Volts. More noise means less clean output.
+    opt_amplitude=1.0, # Enter the continuous wave (CW) optical input amplitude. Higher means higher input power and output too.
+    opt_noise=0.001, # Enter the optical input noise amplitude. Noise add to laser, represents instability and realistic.
+    v_heater_1=0.0,# Enter the DC bias voltages applied to the top and bottom heaters to set the MZM operating point. Changing shows how output changes as you tune operating point.
+    v_heater_2=0.0,
+    bitrate=5e9, # Enter the PRBS signal bitrate in bits per second. Transmission speed, higher bitrate = shorter bits = harder for modulator to responds if too slow.
+    n_bytes=20, # Enter an integer for the length of the PRBS data sequence in bytes. More bytes = longer simulation = more realistic data.
+    steps_per_bit=50, # Enter an integer for the number of simulation time steps per bit to determine the waveform resolution. Higher value = smoother graphs and longer computation time.
+    center_wavelength=1.55, # Changing can affect the interference and phase shift.
+    debug=False,
+    seed=20, # Enter an integer value for the random number generator seed to ensure the PRBS sequence and noise are reproducible across different simulation runs
+)
+
+outputs = ["sig", "revsig", "h1", "h2", "src_in", "out"]
+titles = ["Signal", "Reversed signal", "Heater 1", "Heater 2", "Source input", "Output"]
+ylabels = ["voltage [V]", "voltage [V]", "voltage [V]", "voltage [V]", "power [W]", "power [W]"]
+process = [np.real, np.real, np.real, np.real, power, power]
+fig, axs = plt.subplots(nrows=len(outputs), ncols=1, figsize=(6, 15))
+
+for ax, pr, out, title, ylabel in zip(axs, process, outputs, titles, ylabels):
+    data = pr(results[out][4:])
+    ax.set_title(title)
+    ax.plot(results.timesteps[4:] * 1e9, data, label=f"Length: {length}")
+    ax.set_xlabel("time [ns]")
+    ax.set_ylabel(ylabel)
+
+plt.tight_layout()
+fig.savefig(os.path.join(f"{name}.png"), bbox_inches="tight")
+plt.show()
+
+
+# Sweep length simulation
+
+sweep_name = "sweep_length"
+
+results_array = []
+lengths = np.arange(500, 2500, 500) #Create an array using numpy
+
+for lps in lengths:
+    print(f"Simulating for length {lps} um")
+
+    ps = pdk.PhaseShifterWaveguide(
+        length=lps,
+        core_width=0.45,
+        rib_width=7.8,
+        junction_offset=-0.1,
+        n_width=3.9,
+        p_width=4.1,
+    )
+    vpi_lpi = 20
+    cl = 1.1e-15  # F/um
+    res = 1e5
+    tau = ps.length * cl * res
+    ps.CircuitModel(vpi_lpi=vpi_lpi)
+
+    # Modulator
+    mzm = pdk.MZModulator(phaseshifter=ps)
+
+    # Simulation
+    results = simulate_modulation(
+        cell=mzm,
+        mod_amplitude=1.0, # Enter the RF modulation electrical signal amplitude in Volts. More amplitude affects the larger voltage and phase shift.
+        mod_noise=0.1,  # Enter the RF signal noise amplitude in Volts. More noise means less clean output.
+        opt_amplitude=1.0, # Enter the continuous wave (CW) optical input amplitude. Higher means higher input power and output too.
+        opt_noise=0.001, # Enter the optical input noise amplitude. Noise add to laser, represents instability and realistic.
+        v_heater_1=0.0, # Enter the DC bias voltages applied to the top and bottom heaters to set the MZM operating point. Changing shows how output changes as you tune operating point.
+        v_heater_2=0.0,
+        bitrate=5e9, # Enter the PRBS signal bitrate in bits per second. Transmission speed, higher bitrate = shorter bits = harder for modulator to responds if too slow.
+        n_bytes=20, # Enter an integer for the length of the PRBS data sequence in bytes. More bytes = longer simulation = more realistic data.
+        steps_per_bit=50, # Enter an integer for the number of simulation time steps per bit to determine the waveform resolution. Higher value = smoother graphs and longer computation time.
+        center_wavelength=1.55,  # Changing can affect the interference and phase shift.
+        debug=False,
+        seed=20,
+    )
+    results_array.append(results)
+
+
+outputs = ["sig", "revsig", "out"]
+titles = ["Signal", "Reversed signal", "Output"]
+ylabels = ["voltage [V]", "voltage [V]", "power [W]"]
+process = [np.real, np.real, power]
+fig, axs = plt.subplots(nrows=3, ncols=1, figsize=(6, 6))
+
+for ax, pr, out, title, ylabel in zip(axs, process, outputs, titles, ylabels):
+    for length, results in zip(lengths, results_array):
+        data = pr(results[out][1:])
+        ax.set_title(title)
+        ax.plot(results.timesteps[1:] * 1e9, data, label=f"length: {length}")
+        ax.set_xlabel("time [ns]")
+        ax.set_ylabel(ylabel)
+        if ax is axs[0]:
+            ax.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.0)
+
+plt.tight_layout()
+fig.savefig(os.path.join(f"{sweep_name}.png"), bbox_inches="tight")
+plt.show()
+plt.close(fig)
