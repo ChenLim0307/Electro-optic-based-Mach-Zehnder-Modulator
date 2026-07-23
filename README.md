@@ -337,37 +337,3 @@ The theoretical background of this project is based on established research in s
 
 The complete academic references are included in the accompanying technical report and BibTeX bibliography.
 
-## Citation
-
-When using this repository in academic work, cite it using the following format:
-
-```bibtex
-@misc{mzm_simulation_project,
-  author       = {Your Name},
-  title        = {Electro-Optic Mach--Zehnder Modulator Simulation},
-  year         = {2026},
-  howpublished = {\url{https://github.com/your-username/your-repository}},
-  note         = {Silicon photonic modulator design, layout, and time-domain simulation}
-}
-```
-
-Replace the author name, repository URL, and year where necessary.
-
-## License
-
-This repository is intended for academic and educational use.
-
-Add an appropriate license file before publicly distributing or reusing third-party PDK components. The license of the `si_fab` package and any associated foundry models should also be reviewed separately.
-
-## Author
-
-**Your Name**
-
-Course, university, research group, or laboratory information may be added here.
-
-## Acknowledgements
-
-This project was developed using the `si_fab` photonic design kit and supporting Python-based photonic-design tools. The work was completed as part of a study of electro-optic silicon Mach–Zehnder modulators and their efficiency–bandwidth trade-offs.
-
-
-![Modified length sweep](figures/sweep_length_modified.png)
